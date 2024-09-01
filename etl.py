@@ -16,6 +16,12 @@ os.environ['AWS_SECRET_ACCESS_KEY']=config["AWS"]['AWS_SECRET_ACCESS_KEY']
 
 
 def create_spark_session():
+    """
+    Create a Spark session to be used for data processing.
+
+    Returns:
+        spark (SparkSession): An active Spark session.
+    """
     spark = SparkSession \
         .builder \
         .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0") \
@@ -24,6 +30,18 @@ def create_spark_session():
 
 
 def process_song_data(spark, input_data, output_data):
+    """
+    Processes song data files, extracts relevant columns to create songs and artists tables,
+    and writes these tables to parquet files.
+
+    Args:
+        spark (SparkSession): The active Spark session.
+        input_data (str): The input data path location on S3.
+        output_data (str): The output data path location on S3.
+
+    Returns:
+        None
+    """
     # get filepath to song data file
     song_data = f"{input_data}/song_data/*/*/*/"
 
@@ -31,19 +49,32 @@ def process_song_data(spark, input_data, output_data):
     df = spark.read.json(song_data)
 
     # extract columns to create songs table
-    songs_table = df.select("song_id", "title", "artist_id", "year", "duration").drop_duplicates()
+    songs_table = df.select("song_id", "title", "artist_id", "year", "duration").dropDuplicates(["song_id"])
     
     # write songs table to parquet files partitioned by year and artist
     songs_table = songs_table.write.parquet(f"{output_data}/songs/", partitionBy=["year", "artist_id"])
 
     # extract columns to create artists table
-    artists_table = df.select("artist_id","artist_name","artist_location","artist_latitude","artist_longitude").drop_duplicates()
+    artists_table = df.select("artist_id","artist_name","artist_location","artist_latitude","artist_longitude").dropDuplicates(["artist_id"])
     
     # write artists table to parquet files
     artists_table.write.parquet(f"{output_data}/artists/")
 
 
 def process_log_data(spark, input_data, output_data):
+    """
+    Processs log data files, extracts relevant columns to create users, time, and songplays tables,
+    and writes these tables to parquet files.
+
+    Args:
+        spark (SparkSession): The active Spark session.
+        input_data (str): The input data path location on S3.
+        output_data (str): The output data path location on S3.
+
+    Returns:
+        None
+    """
+
     # get filepath to log data file
     log_data = f"{input_data}/log_data/*/*/*.json"
 
@@ -54,7 +85,7 @@ def process_log_data(spark, input_data, output_data):
     df = df.where(df.page == "NextSong")
 
     # extract columns for users table    
-    users_table = df.select("userId","firstName","lastName","gender","level").drop_duplicates()
+    users_table = df.select("userId","firstName","lastName","gender","level").dropDuplicates(["userId"])
     
     # write users table to parquet files
     users_table.write.parquet(os.path.join(output_data, "users/"))
@@ -74,7 +105,7 @@ def process_log_data(spark, input_data, output_data):
                     .withColumn("month",month("start_time"))\
                     .withColumn("year",year("start_time"))\
                     .withColumn("weekday",date_format("start_time"))\
-                    .select("ts","start_time","hour", "day", "week", "month", "year", "weekday").drop_duplicates()
+                    .select("ts","start_time","hour", "day", "week", "month", "year", "weekday").dropDuplicates(["start_time"])
     
     # write time table to parquet files partitioned by year and month
     time_table.write.parquet(os.path.join(output_data, "time_table/"), partitionBy=["year","month"])
@@ -93,7 +124,7 @@ def process_log_data(spark, input_data, output_data):
                         .withColumnRenamed("userAgent", "user_agent")
 
     # write songplays table to parquet files partitioned by year and month
-    songplays_table.write.parquet(os.path.join(output_data, "songplays/"))
+    songplays_table.write.parquet(os.path.join(output_data, "songplays/"), partitionBy= ["year", "month"])
 
 
 def main():
